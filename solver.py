@@ -44,53 +44,72 @@ with these bounds
     all vars binary
 """
 
-BACKEND_URL = 'https://clerkship-shuffle.appspot.com' #'http://localhost:8080'
+BACKEND_URL = 'https://clerkship-shuffle.appspot.com' #'http://localhost:8080' #
 
-def populatebyrow(prob, num_nodes, edge_names, my_obj):
+def populatebyrow(prob, nodes, edge_names, my_obj):
     prob.objective.set_sense(prob.objective.sense.maximize)
 
     # Make all vars binary
-    prob.variables.add(obj=my_obj, names=edge_names)
-    for name in edge_names:
-        prob.variables.set_types(name, prob.variables.type.binary)
+    prob.variables.add(obj=my_obj, names=edge_names, types=[prob.variables.type.binary] * len(my_obj))
 
     linear_const = []
     rhs = []
     senses = []
     constraint_names = []
 
-    for i in range(num_nodes):
-        node = str(i + 1)
+    for node in nodes:
+        print 'node %s' % node
         # Set conservation and capacity constraint for 
         conservation_names = []
         conservation_coeff = []
         capacity_names = []
         capacity_coeff = []
-        for edge in edge_names:
+        for i, edge in enumerate(edge_names):
+            print '%s edge %s' % (i, edge)
             (sending, receiving) = edge.split('_')
             if sending == node:
-                conservation_names.append(edge)
+                print 'sending node is this node'
+                conservation_names.append(i)
                 conservation_coeff.append(-1.0)
-                capacity_names.append(edge)
+                capacity_names.append(i)
                 capacity_coeff.append(1.0)
+                print conservation_names
+                print conservation_coeff
+                print capacity_names
+                print capacity_coeff
             elif receiving == node:
-                conservation_names.append(edge)
+                print 'receiving node is this node'
+                conservation_names.append(i)
                 conservation_coeff.append(1.0)
+                print conservation_names
+                print conservation_coeff
         # Add conservation constraint
         if len(conservation_names) > 0:
-            linear_const.append([conservation_names, conservation_coeff])
+            print 'conservation'
+            print conservation_names
+            print conservation_coeff
+            linear_const.append(cplex.SparsePair(ind = conservation_names, val = conservation_coeff))
             rhs.append(0.0)
             senses.append('E')
             constraint_names.append('cons_{}'.format(node))
+        else:
+            print 'no conservation'
 
         # Add capacity constraint
         if len(capacity_names) > 0:
-            linear_const.append([capacity_names, capacity_coeff])
+            print 'capacity'
+            print capacity_names
+            print capacity_coeff
+            linear_const.append(cplex.SparsePair(ind = capacity_names, val = capacity_coeff))
             # Since they're binary I can write <= 1 as < 2.0
             # This avoids having to use ranged values
             rhs.append(2.0) 
             senses.append('L')
             constraint_names.append('cap_{}'.format(node))
+        else:
+            print 'no capacity'
+
+    print 'adding linear constraints to problem'
 
     prob.linear_constraints.add(lin_expr=linear_const, senses=senses,
                                 rhs=rhs, names=constraint_names)
@@ -110,10 +129,10 @@ def post_matches(results):
     response = requests.post(url, json={'data': results})
     print response.text
 
-def solve(num_nodes, edge_names, obj):
+def solve(nodes, edge_names, obj):
     try:
         my_prob = cplex.Cplex()
-        handle = populatebyrow(my_prob, num_nodes, edge_names, obj)
+        handle = populatebyrow(my_prob, nodes, edge_names, obj)
         my_prob.solve()
     except CplexError as exc:
         print exc
@@ -138,10 +157,11 @@ def solve(num_nodes, edge_names, obj):
         print("Column {}:  Value = {}".format(
               edge_names[j], x[j]))
     print '{} matches found'.format(matches)
+    print results
     return results
 
 if __name__ == "__main__":
     data = get_input()
     print data
-    results = solve(data['num_nodes'], data['edges'], data['obj'])
+    results = solve(data['nodes'], data['edges'], data['obj'])
     post_matches(results)
