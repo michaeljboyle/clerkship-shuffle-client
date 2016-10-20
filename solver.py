@@ -44,9 +44,9 @@ with these bounds
     all vars binary
 """
 
-BACKEND_URL = 'https://clerkship-shuffle.appspot.com' #'http://localhost:8080' #
+BACKEND_URL = 'http://localhost:8080' #'https://clerkship-shuffle.appspot.com' #
 
-def populatebyrow(prob, nodes, edge_names, my_obj):
+def populatebyrow(prob, nodes, edge_names, my_obj, connected_trades):
     prob.objective.set_sense(prob.objective.sense.maximize)
 
     # Make all vars binary
@@ -109,6 +109,29 @@ def populatebyrow(prob, nodes, edge_names, my_obj):
         else:
             print 'no capacity'
 
+    for node_group in connected_trades:
+        # Coeff sequence is 1, 1, 2, 4
+        coeff_map = {0: 1, 1: 1, 2: 2, 3: 4}
+        indices = []
+        coeffs = []
+        for i, node in enumerate(node_group):
+            coeff = coeff_map[i]
+            if i == (len(node_group) - 1):
+                # make the greatest coeff negative
+                coeff = -coeff
+            # match edges and their indices to the node
+            for index, edge in enumerate(edge_names):
+                donor_node = edge.split('_')[0]
+                if donor_node == node:
+                    indices.append(index)
+                    coeffs.append(coeff)
+        if coeffs:
+            linear_const.append(cplex.SparsePair(ind = indices, val = coeffs))
+            rhs.append(0)
+            senses.append('E')
+            constraint_names.append('connectedtrade_{}'.format(node))
+
+
     print 'adding linear constraints to problem'
 
     prob.linear_constraints.add(lin_expr=linear_const, senses=senses,
@@ -129,10 +152,10 @@ def post_matches(results):
     response = requests.post(url, json={'data': results})
     print response.text
 
-def solve(nodes, edge_names, obj):
+def solve(nodes, edge_names, obj, connected_trades):
     try:
         my_prob = cplex.Cplex()
-        handle = populatebyrow(my_prob, nodes, edge_names, obj)
+        handle = populatebyrow(my_prob, nodes, edge_names, obj, connected_trades)
         my_prob.solve()
     except CplexError as exc:
         print exc
@@ -163,5 +186,5 @@ def solve(nodes, edge_names, obj):
 if __name__ == "__main__":
     data = get_input()
     print data
-    results = solve(data['nodes'], data['edges'], data['obj'])
+    results = solve(data['nodes'], data['edges'], data['obj'], data['connected_trades'])
     post_matches(results)
