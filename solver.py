@@ -44,7 +44,7 @@ with these bounds
     all vars binary
 """
 
-BACKEND_URL = 'http://localhost:8080' #'https://clerkship-shuffle.appspot.com' #
+BACKEND_URL = 'https://clerkship-shuffle.appspot.com' #'http://localhost:8080' #
 
 def populatebyrow(prob, nodes, edge_names, my_obj, connected_trades):
     prob.objective.set_sense(prob.objective.sense.maximize)
